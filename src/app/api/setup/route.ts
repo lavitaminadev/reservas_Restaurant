@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+// @ts-expect-error - pg has no type declarations but works at runtime
 import { Pool } from "pg";
 
 export const runtime = "nodejs";
