@@ -1,62 +1,73 @@
 import { getSupabaseClient } from "../supabase/client";
 import type { DashboardMetrics } from "../types/database";
 
+async function safeCount(query: Promise<{ count: number | null; error: unknown }>): Promise<number> {
+  try {
+    const { count, error } = await query;
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const supabase = getSupabaseClient();
 
+  const s = supabase.from.bind(supabase);
+
   const [
-    { count: totalCompanies },
-    { count: activeCompanies },
-    { count: totalUsers },
-    { count: activeUsers },
-    { count: filesUploaded },
-    { count: documentsProcessed },
-    { count: chunksVectorized },
-    { count: conversationsActive },
-    { count: ticketsOpen },
-    { count: campaignsActive },
-    { count: instagramConnected },
-    { count: chatbotEnabled },
+    totalCompanies,
+    activeCompanies,
+    totalUsers,
+    activeUsers,
+    filesUploaded,
+    documentsProcessed,
+    chunksVectorized,
+    conversationsActive,
+    ticketsOpen,
+    campaignsActive,
+    instagramConnected,
+    chatbotEnabled,
   ] = await Promise.all([
-    supabase.from("companies").select("*", { count: "exact", head: true }),
-    supabase.from("companies").select("*", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("profiles").select("*", { count: "exact", head: true }),
-    supabase.from("company_users").select("*", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("company_files").select("*", { count: "exact", head: true }),
-    supabase.from("knowledge_documents").select("*", { count: "exact", head: true }).eq("is_processed", true),
-    supabase.from("knowledge_chunks").select("*", { count: "exact", head: true }),
-    supabase.from("conversations").select("*", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("tickets").select("*", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
-    supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("connected_accounts").select("*", { count: "exact", head: true }).eq("platform", "instagram").eq("is_active", true),
-    supabase.from("chatbot_settings").select("*", { count: "exact", head: true }).eq("is_enabled", true),
+    safeCount(s("companies").select("*", { count: "exact", head: true })),
+    safeCount(s("companies").select("*", { count: "exact", head: true }).eq("is_active", true)),
+    safeCount(s("profiles").select("*", { count: "exact", head: true })),
+    safeCount(s("company_users").select("*", { count: "exact", head: true }).eq("is_active", true)),
+    safeCount(s("company_files").select("*", { count: "exact", head: true })),
+    safeCount(s("knowledge_documents").select("*", { count: "exact", head: true }).eq("is_processed", true)),
+    safeCount(s("knowledge_chunks").select("*", { count: "exact", head: true })),
+    safeCount(s("conversations").select("*", { count: "exact", head: true }).eq("status", "active")),
+    safeCount(s("tickets").select("*", { count: "exact", head: true }).in("status", ["open", "in_progress"])),
+    safeCount(s("campaigns").select("*", { count: "exact", head: true }).eq("status", "active")),
+    safeCount(s("connected_accounts").select("*", { count: "exact", head: true }).eq("platform", "instagram").eq("is_active", true)),
+    safeCount(s("chatbot_settings").select("*", { count: "exact", head: true }).eq("is_enabled", true)),
   ]);
 
-  const { count: instagramPending } = await supabase
-    .from("companies")
-    .select("*", { count: "exact", head: true })
-    .not("instagram", "is", null);
+  const instagramPending = await safeCount(
+    s("companies").select("*", { count: "exact", head: true }).not("instagram", "is", null)
+  );
 
-  const { count: recentErrors } = await supabase
-    .from("analytics_events")
-    .select("*", { count: "exact", head: true })
-    .eq("event_type", "error")
-    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  const recentErrors = await safeCount(
+    s("analytics_events").select("*", { count: "exact", head: true })
+      .eq("event_type", "error")
+      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+  );
 
   return {
-    total_companies: totalCompanies ?? 0,
-    active_companies: activeCompanies ?? 0,
-    total_users: totalUsers ?? 0,
-    active_users: activeUsers ?? 0,
-    files_uploaded: filesUploaded ?? 0,
-    documents_processed: documentsProcessed ?? 0,
-    chunks_vectorized: chunksVectorized ?? 0,
-    conversations_active: conversationsActive ?? 0,
-    tickets_open: ticketsOpen ?? 0,
-    campaigns_active: campaignsActive ?? 0,
-    instagram_connected: instagramConnected ?? 0,
-    instagram_pending: instagramPending ?? 0,
-    recent_errors: recentErrors ?? 0,
-    chatbot_enabled: chatbotEnabled ?? 0,
+    total_companies: totalCompanies,
+    active_companies: activeCompanies,
+    total_users: totalUsers,
+    active_users: activeUsers,
+    files_uploaded: filesUploaded,
+    documents_processed: documentsProcessed,
+    chunks_vectorized: chunksVectorized,
+    conversations_active: conversationsActive,
+    tickets_open: ticketsOpen,
+    campaigns_active: campaignsActive,
+    instagram_connected: instagramConnected,
+    instagram_pending: instagramPending,
+    recent_errors: recentErrors,
+    chatbot_enabled: chatbotEnabled,
   };
 }
